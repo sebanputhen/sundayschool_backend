@@ -1,7 +1,6 @@
 // controllers/registrationController.js
 const Student = require('../models/Student');
-const path = require('path');
-const fs = require('fs');
+const { put, del } = require('@vercel/blob');
 
 // @desc    Public student registration
 // @route   POST /api/public/register
@@ -45,7 +44,7 @@ const registerStudent = async (req, res) => {
       });
     }
 
-    // Check if phone number already exists (optional)
+    // Check if phone number already exists
     const existingPhone = await Student.findOne({ phoneNumber: phoneNumber.trim() });
     if (existingPhone) {
       return res.status(400).json({
@@ -54,10 +53,28 @@ const registerStudent = async (req, res) => {
       });
     }
 
-    // Get photo path if uploaded
-    const photoPath = req.file ? `/uploads/students/${req.file.filename}` : null;
+    // Upload photo to Vercel Blob Storage
+    let photoUrl = null;
+    if (req.file) {
+      try {
+        const filename = `students/student-${Date.now()}-${Math.round(Math.random() * 1E9)}.jpg`;
+        
+        const blob = await put(filename, req.file.buffer, {
+          access: 'public',
+          contentType: req.file.mimetype,
+        });
+        
+        photoUrl = blob.url;
+      } catch (uploadError) {
+        console.error('Photo upload error:', uploadError);
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to upload photo. Please try again.',
+        });
+      }
+    }
 
-    if (!photoPath) {
+    if (!photoUrl) {
       return res.status(400).json({
         success: false,
         message: 'Photo is required',
@@ -68,6 +85,7 @@ const registerStudent = async (req, res) => {
     const student = await Student.create({
       name: name.trim(),
       baptismName: baptismName.trim(),
+      houseName: houseName.trim(),
       gender,
       className,
       division,
@@ -80,7 +98,7 @@ const registerStudent = async (req, res) => {
       motherBaptismName: motherBaptismName?.trim() || '',
       phoneNumber: phoneNumber.trim(),
       email: email.toLowerCase().trim(),
-      photo: photoPath,
+      photo: photoUrl,
       status: 'pending',
     });
 
@@ -96,14 +114,6 @@ const registerStudent = async (req, res) => {
     });
   } catch (error) {
     console.error('Registration error:', error);
-    
-    // Delete uploaded file if registration fails
-    if (req.file) {
-      const filePath = path.join(__dirname, '../uploads/students', req.file.filename);
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
-    }
 
     res.status(500).json({
       success: false,
@@ -182,9 +192,9 @@ const approveRegistration = async (req, res) => {
     }
 
     student.status = 'approved';
-    student.approvedBy = req.user?.id; // Assuming req.user is set by auth middleware
+    student.approvedBy = req.user?.id;
     student.approvedDate = Date.now();
-    await student.save(); // This will trigger the pre-save hook to generate admission number
+    await student.save();
 
     res.status(200).json({
       success: true,
@@ -284,11 +294,13 @@ const deleteRegistration = async (req, res) => {
       });
     }
 
-    // Delete photo file if exists
+    // Delete photo from Vercel Blob if exists
     if (student.photo) {
-      const filePath = path.join(__dirname, '..', student.photo);
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
+      try {
+        await del(student.photo);
+      } catch (deleteError) {
+        console.error('Error deleting file from Vercel Blob:', deleteError);
+        // Continue with deletion even if blob deletion fails
       }
     }
 
@@ -308,7 +320,6 @@ const deleteRegistration = async (req, res) => {
   }
 };
 
-// IMPORTANT: Export all functions
 module.exports = {
   registerStudent,
   getPendingRegistrations,

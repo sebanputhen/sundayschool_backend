@@ -1,3 +1,4 @@
+// models/Student.js
 const mongoose = require('mongoose');
 
 const studentSchema = new mongoose.Schema({
@@ -74,7 +75,7 @@ const studentSchema = new mongoose.Schema({
     trim: true,
   },
   photo: {
-    type: String, // URL or path to uploaded photo
+    type: String, // Vercel Blob URL (e.g., https://xxxx.public.blob.vercel-storage.com/...)
   },
   status: {
     type: String,
