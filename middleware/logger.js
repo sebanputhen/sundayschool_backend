@@ -1,29 +1,32 @@
+// middleware/logger.js
 const { format } = require("date-fns/format");
 const { v4: uuid } = require("uuid");
-const fs = require("fs");
-const path = require("path");
-const fsPromises = require("fs").promises;
 
+/**
+ * Log events to console (Vercel captures console output)
+ * @param {string} message - Log message
+ * @param {string} logFileName - Log file name (for categorization)
+ */
 const logEvents = async (message, logFileName) => {
-  const dateTime = `${format(new Date(), "yyyyMMdd\tHH:mm:ss")}`;
-  const logItem = `${dateTime}\t${uuid()}\t${message}\n`;
-  try {
-    if (!fs.existsSync(path.join(__dirname, "..", "logs"))) {
-      await fsPromises.mkdir(path.join(__dirname, "..", "logs"));
-    }
-    await fsPromises.appendFile(
-      path.join(__dirname, "..", "logs", logFileName),
-      logItem
-    );
-  } catch (error) {
-    console.log(error);
-  }
+  const dateTime = format(new Date(), "yyyy-MM-dd HH:mm:ss");
+  const logId = uuid();
+  const logItem = `${dateTime}\t${logId}\t${message}`;
+  
+  // Console logging for Vercel (appears in Function Logs)
+  console.log(`[${logFileName}] ${logItem}`);
 };
 
+/**
+ * Express middleware for logging HTTP requests
+ */
 const logger = (req, res, next) => {
-  logEvents(`${req.method}\t${req.headers.origin}\t${req.url}`, "reqLog.log");
+  const origin = req.headers.origin || 'Direct';
+  const logMessage = `${req.method}\t${origin}\t${req.url}`;
+  
+  logEvents(logMessage, "reqLog.log");
   console.log(`${req.method} ${req.path}`);
-  next()
+  
+  next();
 };
 
 module.exports = { logEvents, logger };

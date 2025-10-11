@@ -59,17 +59,20 @@ const registerStudent = async (req, res) => {
       try {
         const filename = `students/student-${Date.now()}-${Math.round(Math.random() * 1E9)}.jpg`;
         
+        // Upload to Vercel Blob
         const blob = await put(filename, req.file.buffer, {
           access: 'public',
           contentType: req.file.mimetype,
         });
         
         photoUrl = blob.url;
+        console.log('Photo uploaded successfully:', photoUrl);
       } catch (uploadError) {
         console.error('Photo upload error:', uploadError);
         return res.status(500).json({
           success: false,
           message: 'Failed to upload photo. Please try again.',
+          error: uploadError.message,
         });
       }
     }
@@ -192,9 +195,9 @@ const approveRegistration = async (req, res) => {
     }
 
     student.status = 'approved';
-    student.approvedBy = req.user?.id;
+    student.approvedBy = req.user?.id; // Assuming req.user is set by auth middleware
     student.approvedDate = Date.now();
-    await student.save();
+    await student.save(); // This will trigger the pre-save hook to generate admission number
 
     res.status(200).json({
       success: true,
@@ -298,9 +301,10 @@ const deleteRegistration = async (req, res) => {
     if (student.photo) {
       try {
         await del(student.photo);
+        console.log('Photo deleted from Vercel Blob:', student.photo);
       } catch (deleteError) {
         console.error('Error deleting file from Vercel Blob:', deleteError);
-        // Continue with deletion even if blob deletion fails
+        // Continue with student deletion even if blob deletion fails
       }
     }
 
@@ -320,6 +324,104 @@ const deleteRegistration = async (req, res) => {
   }
 };
 
+// @desc    Update student registration
+// @route   PUT /api/admin/registrations/:id
+// @access  Private/Admin
+const updateRegistration = async (req, res) => {
+  try {
+    const student = await Student.findById(req.params.id);
+
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student registration not found',
+      });
+    }
+
+    const {
+      name,
+      baptismName,
+      houseName,
+      gender,
+      className,
+      division,
+      dateOfBirth,
+      dateOfBaptism,
+      dateOfHolyCommunion,
+      fatherName,
+      fatherBaptismName,
+      motherName,
+      motherBaptismName,
+      phoneNumber,
+      email,
+    } = req.body;
+
+    // Update fields if provided
+    if (name) student.name = name.trim();
+    if (baptismName) student.baptismName = baptismName.trim();
+    if (houseName) student.houseName = houseName.trim();
+    if (gender) student.gender = gender;
+    if (className) student.className = className;
+    if (division) student.division = division;
+    if (dateOfBirth) student.dateOfBirth = dateOfBirth;
+    if (dateOfBaptism) student.dateOfBaptism = dateOfBaptism;
+    if (dateOfHolyCommunion !== undefined) student.dateOfHolyCommunion = dateOfHolyCommunion;
+    if (fatherName) student.fatherName = fatherName.trim();
+    if (fatherBaptismName !== undefined) student.fatherBaptismName = fatherBaptismName.trim();
+    if (motherName) student.motherName = motherName.trim();
+    if (motherBaptismName !== undefined) student.motherBaptismName = motherBaptismName.trim();
+    if (phoneNumber) student.phoneNumber = phoneNumber.trim();
+    if (email) student.email = email.toLowerCase().trim();
+
+    // Handle photo update if new photo is uploaded
+    if (req.file) {
+      try {
+        // Delete old photo from Vercel Blob
+        if (student.photo) {
+          try {
+            await del(student.photo);
+          } catch (deleteError) {
+            console.error('Error deleting old photo:', deleteError);
+          }
+        }
+
+        // Upload new photo
+        const filename = `students/student-${Date.now()}-${Math.round(Math.random() * 1E9)}.jpg`;
+        const blob = await put(filename, req.file.buffer, {
+          access: 'public',
+          contentType: req.file.mimetype,
+        });
+
+        student.photo = blob.url;
+        console.log('Photo updated successfully:', blob.url);
+      } catch (uploadError) {
+        console.error('Photo upload error:', uploadError);
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to upload new photo',
+          error: uploadError.message,
+        });
+      }
+    }
+
+    await student.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Registration updated successfully',
+      data: student,
+    });
+  } catch (error) {
+    console.error('Error updating registration:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update registration',
+      error: error.message,
+    });
+  }
+};
+
+// IMPORTANT: Export all functions
 module.exports = {
   registerStudent,
   getPendingRegistrations,
@@ -328,4 +430,5 @@ module.exports = {
   approveRegistration,
   rejectRegistration,
   deleteRegistration,
+  updateRegistration,
 };
