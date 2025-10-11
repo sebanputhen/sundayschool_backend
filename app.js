@@ -1,5 +1,5 @@
 require("dotenv").config({ path: "./config/.env" });
-
+const path = require("path");
 const express = require("express");
 const connectDB = require("./config/db");
 const cors = require("cors");
@@ -80,8 +80,9 @@ app.use(passport.session());
 app.get("/", (req, res) => {
   res.status(200);
 });
-
-
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/public', require('./routes/publicRoutes'));
+app.use('/admin', require('./routes/adminRoutes'));
 // Add this route
 app.use('/analytics', transactionAnalyticsRoutes);
 //app.use("/auth", auth);
