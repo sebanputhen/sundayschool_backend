@@ -450,6 +450,150 @@ const updateRegistration = async (req, res) => {
   }
 };
 
+// @desc    Find student by name, house, DOB for photo upload
+// @route   POST /api/public/find-student
+// @access  Public
+const findStudentForPhoto = async (req, res) => {
+  try {
+    const { name, houseName, dateOfBirth } = req.body;
+
+    if (!name || !houseName || !dateOfBirth) {
+      return res.status(400).json({ success: false, message: 'All fields are required' });
+    }
+
+    const student = await Student.findOne({
+      name: { $regex: `^${name.trim()}$`, $options: 'i' },
+      houseName: { $regex: `^${houseName.trim()}$`, $options: 'i' },
+      dateOfBirth: new Date(dateOfBirth),
+    }).lean();
+
+    if (!student) {
+      return res.status(404).json({ success: false, message: 'No matching student found. Please check your details.' });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        _id: student._id,
+        name: student.name,
+        houseName: student.houseName,
+        className: student.className,
+        division: student.division,
+        photo: student.photo,
+      },
+    });
+  } catch (error) {
+    console.error('Find student error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// @desc    Upload photo for existing student
+// @route   PUT /api/public/upload-photo/:id
+// @access  Public
+const uploadStudentPhoto = async (req, res) => {
+  try {
+    const student = await Student.findById(req.params.id);
+    if (!student) {
+      return res.status(404).json({ success: false, message: 'Student not found' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'Please select a photo' });
+    }
+
+    // Delete old photo if exists
+    if (student.photo) {
+      try { await del(student.photo); } catch (e) { console.error('Old photo delete error:', e); }
+    }
+
+    const filename = `students/student-${student._id}-${Date.now()}.jpg`;
+    const blob = await put(filename, req.file.buffer, {
+      access: 'public',
+      contentType: req.file.mimetype,
+    });
+
+    student.photo = blob.url;
+    await student.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Photo uploaded successfully',
+      data: { photo: blob.url },
+    });
+  } catch (error) {
+    console.error('Upload photo error:', error);
+    res.status(500).json({ success: false, message: 'Failed to upload photo' });
+  }
+};
+// @desc    Get 12th standard students for dropdown (current year)
+// @route   GET /api/public/students-12
+// @access  Public
+const getClass12Students = async (req, res) => {
+  try {
+    const currentYear = new Date().getFullYear();
+    const students = await Student.find({
+      className: '12',
+      registrationDate: {
+        $gte: new Date(`${currentYear}-01-01`),
+        $lt: new Date(`${currentYear + 1}-01-01`),
+      },
+    })
+      .select('_id name houseName division')
+      .sort({ name: 1 })
+      .lean();
+
+    res.status(200).json({ success: true, data: students });
+  } catch (error) {
+    console.error('Error fetching class 12 students:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch students' });
+  }
+};
+
+// @desc    Verify student DOB and return details for photo upload
+// @route   POST /api/public/verify-student
+// @access  Public
+const verifyStudentForPhoto = async (req, res) => {
+  try {
+    const { studentId, dateOfBirth } = req.body;
+    if (!studentId || !dateOfBirth) {
+      return res.status(400).json({ success: false, message: 'Student and date of birth are required' });
+    }
+
+    const student = await Student.findById(studentId).lean();
+    if (!student) {
+      return res.status(404).json({ success: false, message: 'Student not found' });
+    }
+
+    // Compare DOB
+    const inputDOB = new Date(dateOfBirth).toISOString().split('T')[0];
+    const studentDOB = new Date(student.dateOfBirth).toISOString().split('T')[0];
+    if (inputDOB !== studentDOB) {
+      return res.status(400).json({ success: false, message: 'Date of birth does not match our records' });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        _id: student._id,
+        name: student.name,
+        houseName: student.houseName,
+        className: student.className,
+        division: student.division,
+        photo: student.photo,
+      },
+    });
+  } catch (error) {
+    console.error('Verify student error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// Add to module.exports:
+// getClass12Students, verifyStudentForPhoto, uploadStudentPhoto,
+// Add to module.exports:
+// findStudentForPhoto, uploadStudentPhoto,
+
 // IMPORTANT: Export all functions
 module.exports = {
   registerStudent,
@@ -460,4 +604,6 @@ module.exports = {
   rejectRegistration,
   deleteRegistration,
   updateRegistration,
+  findStudentForPhoto,
+  uploadStudentPhoto
 };
