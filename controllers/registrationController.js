@@ -153,23 +153,52 @@ const getPendingRegistrations = async (req, res) => {
 // @access  Private/Admin
 const getAllRegistrations = async (req, res) => {
   try {
-    const { status } = req.query;
-    const filter = status ? { status } : {};
-    
-    const students = await Student.find(filter)
-      .sort({ registrationDate: -1 });
+    const { status, search, className, division, year, page = 1, limit = 50 } = req.query;
+    const filter = {};
+
+    if (status) filter.status = status;
+
+    if (className) filter.className = className;
+    if (division) filter.division = division;
+
+    if (year) {
+      filter.registrationDate = {
+        $gte: new Date(`${year}-01-01`),
+        $lt: new Date(`${Number(year) + 1}-01-01`),
+      };
+    }
+
+    if (search) {
+      const q = search.trim();
+      filter.$or = [
+        { name: { $regex: q, $options: 'i' } },
+        { email: { $regex: q, $options: 'i' } },
+        { phoneNumber: { $regex: q, $options: 'i' } },
+        { admissionNo: { $regex: q, $options: 'i' } },
+      ];
+    }
+
+    const skip = (Number(page) - 1) * Number(limit);
+    const [students, total] = await Promise.all([
+      Student.find(filter)
+        .sort({ registrationDate: -1 })
+        .skip(skip)
+        .limit(Number(limit))
+        .lean(),
+      Student.countDocuments(filter),
+    ]);
 
     res.status(200).json({
       success: true,
       count: students.length,
+      total,
+      page: Number(page),
+      totalPages: Math.ceil(total / Number(limit)),
       data: students,
     });
   } catch (error) {
     console.error('Error fetching registrations:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch registrations',
-    });
+    res.status(500).json({ success: false, message: 'Failed to fetch registrations' });
   }
 };
 

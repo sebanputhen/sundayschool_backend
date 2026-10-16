@@ -112,5 +112,7 @@ studentSchema.pre('save', async function(next) {
   }
   next();
 });
-
+// In models/Student.js, after schema definition:
+studentSchema.index({ status: 1, registrationDate: -1 });
+studentSchema.index({ name: 'text', email: 'text', phoneNumber: 'text' });
 module.exports = mongoose.model('Student', studentSchema);
