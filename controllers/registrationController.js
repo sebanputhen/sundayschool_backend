@@ -526,6 +526,38 @@ const uploadStudentPhoto = async (req, res) => {
     res.status(500).json({ success: false, message: 'Failed to upload photo' });
   }
 };
+
+// @desc    Get 12th standard students by DOB
+// @route   POST /api/public/students-by-dob
+// @access  Public
+const getStudentsByDob = async (req, res) => {
+  try {
+    const { dateOfBirth } = req.body;
+    if (!dateOfBirth) {
+      return res.status(400).json({ success: false, message: 'Date of birth is required' });
+    }
+
+    const dob = new Date(dateOfBirth);
+    const currentYear = new Date().getFullYear();
+
+    const students = await Student.find({
+      className: '12',
+      dateOfBirth: dob,
+      registrationDate: {
+        $gte: new Date(`${currentYear}-01-01`),
+        $lt: new Date(`${currentYear + 1}-01-01`),
+      },
+    })
+      .select('_id name houseName division photo')
+      .sort({ name: 1 })
+      .lean();
+
+    res.status(200).json({ success: true, data: students });
+  } catch (error) {
+    console.error('Error fetching students by DOB:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch students' });
+  }
+};
 // @desc    Get 12th standard students for dropdown (current year)
 // @route   GET /api/public/students-12
 // @access  Public
@@ -604,7 +636,7 @@ module.exports = {
   rejectRegistration,
   deleteRegistration,
   updateRegistration,
-  getClass12Students, 
+  getStudentsByDob,
   verifyStudentForPhoto, 
   uploadStudentPhoto,
 };
