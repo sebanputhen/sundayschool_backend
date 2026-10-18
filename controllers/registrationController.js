@@ -604,6 +604,7 @@ module.exports = {
   rejectRegistration,
   deleteRegistration,
   updateRegistration,
-  findStudentForPhoto,
-  uploadStudentPhoto
+  getClass12Students, 
+  verifyStudentForPhoto, 
+  uploadStudentPhoto,
 };
