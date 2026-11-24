@@ -82,6 +82,7 @@ app.get("/", (req, res) => {
 });
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/public', require('./routes/publicRoutes'));
+app.use('/publicimage', require('./routes/publicRoutesimage'));
 app.use('/admin', require('./routes/adminRoutes'));
 // Add this route
 app.use('/analytics', transactionAnalyticsRoutes);
