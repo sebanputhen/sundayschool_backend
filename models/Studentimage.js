@@ -25,7 +25,7 @@ const studentimageSchema = new mongoose.Schema({
   gender: {
     type: String,
     required: false,
-    enum: ['Male', 'Female'],
+    
   },
   className: {
     type: String,
