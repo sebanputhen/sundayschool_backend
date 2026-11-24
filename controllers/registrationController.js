@@ -620,7 +620,117 @@ const verifyStudentForPhoto = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
+const registerStudentPhoto = async (req, res) => {
+  try {
+    const {
+      name,
+      baptismName,
+      houseName,
+      gender,
+      className,
+      division,
+      dateOfBirth,
+      dateOfBaptism,
+      dateOfHolyCommunion,
+      fatherName,
+      fatherBaptismName,
+      motherName,
+      motherBaptismName,
+      phoneNumber,
+      email,
+    } = req.body;
 
+    // Only photo is mandatory
+    // Upload photo to Vercel Blob Storage
+    let photoUrl = null;
+    if (req.file) {
+      try {
+        const filename = `students/student-${Date.now()}-${Math.round(Math.random() * 1E9)}.jpg`;
+        const blob = await put(filename, req.file.buffer, {
+          access: 'public',
+          contentType: req.file.mimetype,
+        });
+        photoUrl = blob.url;
+        console.log('Photo uploaded successfully:', photoUrl);
+      } catch (uploadError) {
+        console.error('Photo upload error:', uploadError);
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to upload photo. Please try again.',
+          error: uploadError.message,
+        });
+      }
+    }
+
+    if (!photoUrl) {
+      return res.status(400).json({
+        success: false,
+        message: 'Photo is required',
+      });
+    }
+
+    // Validate email format if provided
+    if (email && email.trim()) {
+      const existingStudent = await Student.findOne({ email: email.toLowerCase().trim() });
+      if (existingStudent) {
+        return res.status(400).json({
+          success: false,
+          message: 'This email address is already registered. Please use a different email.',
+        });
+      }
+    }
+
+    // Check if phone number already exists (only if provided)
+    if (phoneNumber && phoneNumber.trim()) {
+      const existingPhone = await Student.findOne({ phoneNumber: phoneNumber.trim() });
+      if (existingPhone) {
+        return res.status(400).json({
+          success: false,
+          message: 'This phone number is already registered. Please use a different phone number.',
+        });
+      }
+    }
+
+    // Create new student registration
+    const student = await Student.create({
+      name: name?.trim() || '',
+      baptismName: baptismName?.trim() || '',
+      houseName: houseName?.trim() || '',
+      gender: gender || '',
+      className: className || '',
+      division: division || '',
+      dateOfBirth: dateOfBirth || null,
+      dateOfBaptism: dateOfBaptism || null,
+      dateOfHolyCommunion: dateOfHolyCommunion || null,
+      fatherName: fatherName?.trim() || '',
+      fatherBaptismName: fatherBaptismName?.trim() || '',
+      motherName: motherName?.trim() || '',
+      motherBaptismName: motherBaptismName?.trim() || '',
+      phoneNumber: phoneNumber?.trim() || '',
+      email: email ? email.toLowerCase().trim() : '',
+      photo: photoUrl,
+      status: 'pending',
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Registration submitted successfully. You will be notified once approved.',
+      data: {
+        id: student._id,
+        name: student.name,
+        email: student.email,
+        status: student.status,
+      },
+    });
+  } catch (error) {
+    console.error('Registration error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Registration failed. Please try again.',
+      error: error.message,
+    });
+  }
+};
 // Add to module.exports:
 // getClass12Students, verifyStudentForPhoto, uploadStudentPhoto,
 // Add to module.exports:
@@ -629,6 +739,7 @@ const verifyStudentForPhoto = async (req, res) => {
 // IMPORTANT: Export all functions
 module.exports = {
   registerStudent,
+  registerStudentPhoto,
   getPendingRegistrations,
   getAllRegistrations,
   getRegistrationById,
